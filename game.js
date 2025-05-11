@@ -109,37 +109,36 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        
-        for (let circuit = 1; circuit < 2; circuit++) {
-            for (let i = 0; i < 6; i+=2) {
-                const node1 = gameState.nodes.find(n => n.circuit === circuit && n.position === i+1);
-                const node2 = gameState.nodes.find(n => n.circuit === circuit + 1 && n.position === i+1);
-                
-                if (node1 && node2) {
-                    gameState.edges.push({
-                        node1: node1.id,
-                        node2: node2.id,
-                        weight: hexagons[circuit - 1].weight,
-                        controlledBy: null
-                    });
-                }
+        // Define specific connection points between circuits
+        // Only connect at specific positions between circuit 1 and 2
+        const circuit1to2Connections = [0, 2, 4]; // Connect at these positions
+        for (let pos of circuit1to2Connections) {
+            const node1 = gameState.nodes.find(n => n.circuit === 1 && n.position === pos);
+            const node2 = gameState.nodes.find(n => n.circuit === 2 && n.position === pos);
+            
+            if (node1 && node2) {
+                gameState.edges.push({
+                    node1: node1.id,
+                    node2: node2.id,
+                    weight: hexagons[0].weight, // Weight of circuit 1
+                    controlledBy: null
+                });
             }
         }
         
-        // Radial connections between circuits
-        for (let circuit = 2; circuit < 3; circuit++) {
-            for (let i = 0; i < 6; i+=2) {
-                const node1 = gameState.nodes.find(n => n.circuit === circuit && n.position === i);
-                const node2 = gameState.nodes.find(n => n.circuit === circuit + 1 && n.position === i);
-                
-                if (node1 && node2) {
-                    gameState.edges.push({
-                        node1: node1.id,
-                        node2: node2.id,
-                        weight: hexagons[circuit - 1].weight,
-                        controlledBy: null
-                    });
-                }
+        // Only connect at specific positions between circuit 2 and 3
+        const circuit2to3Connections = [1, 3, 5]; // Connect at different positions
+        for (let pos of circuit2to3Connections) {
+            const node1 = gameState.nodes.find(n => n.circuit === 2 && n.position === pos);
+            const node2 = gameState.nodes.find(n => n.circuit === 3 && n.position === pos);
+            
+            if (node1 && node2) {
+                gameState.edges.push({
+                    node1: node1.id,
+                    node2: node2.id,
+                    weight: hexagons[1].weight, // Weight of circuit 2
+                    controlledBy: null
+                });
             }
         }
         
@@ -220,8 +219,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Disable nodes that are in locked circuits
             if (node.circuit > gameState.unlockedCircuit) {
+                nodeElement.classList.add('locked');
                 nodeElement.style.pointerEvents = 'none';
                 nodeElement.style.opacity = '0.5';
+            } else {
+                // Make sure unlocked nodes are fully visible
+                nodeElement.classList.remove('locked');
+                nodeElement.style.pointerEvents = 'auto';
+                nodeElement.style.opacity = '1';
             }
             
             container.appendChild(nodeElement);
@@ -316,43 +321,90 @@ document.addEventListener('DOMContentLoaded', () => {
     // Setup event listeners
     function setupEventListeners() {
         // Node click handler
-        hexGrid.addEventListener('click', (e) => {
-            if (gameState.gameOver || gameState.gamePaused) return;
-            
-            const nodeElement = e.target.closest('.node');
-            if (!nodeElement) return;
-            
-            const nodeId = nodeElement.id;
-            const node = gameState.nodes.find(n => n.id === nodeId);
-            
-            if (!node || node.circuit > gameState.unlockedCircuit) return;
-            
-            if (gameState.phase === 'placement') {
-                handlePlacement(node);
-            } else {
-                handleMovement(node);
-            }
-        });
+        hexGrid.addEventListener('click', handleNodeClick);
         
         // Pause button
-        pauseBtn.addEventListener('click', () => {
-            gameState.gamePaused = !gameState.gamePaused;
-            pauseBtn.textContent = gameState.gamePaused ? 'Resume' : 'Pause';
-            updateUI();
-            
-            if (!gameState.gamePaused) {
-                gameState.lastUpdateTime = Date.now();
-            }
-        });
+        pauseBtn.addEventListener('click', handlePauseClick);
         
         // Reset button
-        resetBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to reset the game?')) {
-                resetGame();
-            }
-        });
+        resetBtn.addEventListener('click', handleResetClick);
     }
     
+    // Event handler functions (defined separately to allow removal)
+    function handleNodeClick(e) {
+        if (gameState.gameOver || gameState.gamePaused) return;
+        
+        const nodeElement = e.target.closest('.node');
+        if (!nodeElement) return;
+        
+        const nodeId = nodeElement.id;
+        const node = gameState.nodes.find(n => n.id === nodeId);
+        
+        if (!node || node.circuit > gameState.unlockedCircuit) return;
+        
+        if (gameState.phase === 'placement') {
+            handlePlacement(node);
+        } else {
+            handleMovement(node);
+        }
+    }
+    
+    function handlePauseClick() {
+        gameState.gamePaused = !gameState.gamePaused;
+        pauseBtn.textContent = gameState.gamePaused ? 'Resume' : 'Pause';
+        updateUI();
+        
+        if (!gameState.gamePaused) {
+            gameState.lastUpdateTime = Date.now();
+        }
+    }
+    
+    function handleResetClick() {
+        if (confirm('Are you sure you want to reset the game?')) {
+            resetGame();
+        }
+    }
+    
+    // Remove event listeners
+    function removeEventListeners() {
+        hexGrid.removeEventListener('click', handleNodeClick);
+        pauseBtn.removeEventListener('click', handlePauseClick);
+        resetBtn.removeEventListener('click', handleResetClick);
+    }
+    
+    // Reset the game
+    function resetGame() {
+        // Remove existing event listeners
+        removeEventListeners();
+        
+        // Reset game state
+        gameState = {
+            currentPlayer: PLAYER_RED,
+            phase: 'placement',
+            redScore: 0,
+            blueScore: 0,
+            redTitansPlaced: 0,
+            blueTitansPlaced: 0,
+            redTitansRemaining: TOTAL_TITANS,
+            blueTitansRemaining: TOTAL_TITANS,
+            nodes: [],
+            edges: [],
+            unlockedCircuit: 1,
+            gameOver: false,
+            gamePaused: false,
+            overallTimer: null,
+            turnTimer: null,
+            overallTimeRemaining: TOTAL_GAME_TIME,
+            turnTimeRemaining: TURN_TIME,
+            selectedNode: null,
+            lastUpdateTime: Date.now()
+        };
+        
+        // Reinitialize the game
+        initGame();
+    }
+    
+    // Handle placement phase
     // Handle placement phase
     function handlePlacement(node) {
         // Check if node is already occupied
@@ -415,9 +467,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Move the titan
-        gameState.selectedNode.occupied = null;
-        gameState.selectedNode.element.classList.remove(`occupied-${gameState.currentPlayer}`);
+        const playerColor = gameState.selectedNode.occupied;
+        gameState.selectedNode.element.classList.remove(`occupied-${playerColor}`);
         gameState.selectedNode.element.style.border = '';
+        gameState.selectedNode.occupied = null;
         
         node.occupied = gameState.currentPlayer;
         node.element.classList.add(`occupied-${gameState.currentPlayer}`);
@@ -425,8 +478,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update edge controls
         updateEdgeControls();
         
-        // Check for titan elimination
-        checkTitanElimination();
+        // Check if current circuit is fully occupied
+        checkCircuitCompletion();
         
         // Check if inner hexagon is fully occupied
         checkInnerHexagonCompletion();
@@ -489,18 +542,27 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Check if current circuit is fully occupied
     function checkCircuitCompletion() {
-        const circuitNodes = gameState.nodes.filter(n => n.circuit === gameState.unlockedCircuit);
+        // Check the currently unlocked circuit
+        const circuit = gameState.unlockedCircuit;
+        const circuitNodes = gameState.nodes.filter(n => n.circuit === circuit);
         const isFull = circuitNodes.every(n => n.occupied);
         
-        if (isFull && gameState.unlockedCircuit < 3) {
+        console.log(`Checking circuit ${circuit}, isFull: ${isFull}, nodes: ${circuitNodes.length}`);
+        
+        // If this circuit is full and we can unlock the next one
+        if (isFull && circuit < 3) {
+            // Increment to the next circuit
             gameState.unlockedCircuit++;
+            console.log(`Unlocking circuit ${gameState.unlockedCircuit}`);
+            
+            // Force re-render to update node visibility
             renderGrid();
             
-            // If middle circuit is completed, unlock the inner circuit
-            if (gameState.unlockedCircuit === 2) {
-                gameState.unlockedCircuit++;
-                renderGrid();
-            }
+            // Show a notification to the player
+            gameStatus.textContent = `Circuit ${gameState.unlockedCircuit} unlocked!`;
+            setTimeout(() => {
+                updateUI(); // Reset the status message after a delay
+            }, 2000);
         }
     }
     
@@ -512,35 +574,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isFull) {
             endGame();
         }
-    }
-    
-    // Check for titan elimination (surrounded by opponent titans)
-    function checkTitanElimination() {
-        gameState.nodes.forEach(node => {
-            if (!node.occupied) return;
-            
-            const adjacentNodes = getAdjacentNodes(node);
-            const opponent = node.occupied === PLAYER_RED ? PLAYER_BLUE : PLAYER_RED;
-            
-            // Check if all adjacent nodes are occupied by opponent
-            const isSurrounded = adjacentNodes.length > 0 && 
-                               adjacentNodes.every(adjNode => adjNode.occupied === opponent);
-            
-            if (isSurrounded) {
-                // Eliminate the titan
-                node.occupied = null;
-                node.element.classList.remove(`occupied-${node.occupied}`);
-                
-                if (node.occupied === PLAYER_RED) {
-                    gameState.redTitansPlaced--;
-                } else {
-                    gameState.blueTitansPlaced--;
-                }
-                
-                // Update edge controls
-                updateEdgeControls();
-            }
-        });
     }
     
     // Get adjacent nodes for a given node
@@ -578,15 +611,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Reset the game
     function resetGame() {
         // Clear existing timers
-        if (gameState.overallTimer) {
-            clearInterval(gameState.overallTimer);
-            gameState.overallTimer = null;
-        }
-        if (gameState.turnTimer) {
-            clearInterval(gameState.turnTimer);
-            gameState.turnTimer = null;
-        }
-    
+        if (gameState.overallTimer) clearInterval(gameState.overallTimer);
+        if (gameState.turnTimer) clearInterval(gameState.turnTimer);
+        
         // Reset game state
         gameState = {
             currentPlayer: PLAYER_RED,
@@ -609,11 +636,10 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedNode: null,
             lastUpdateTime: Date.now()
         };
-    
+        
         // Reinitialize the game
         initGame();
         pauseBtn.textContent = 'Pause'; // Reset pause button text
-        updateUI(); // Ensure UI is properly updated
     }
     
     // Initialize the game
